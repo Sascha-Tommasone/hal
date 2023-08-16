@@ -30,6 +30,7 @@
 #include "hal_core/netlist/module.h"
 #include "gui/module_model/module_item.h"
 
+#include "gui/basic_tree_model/base_tree_model.h"
 #include <QAbstractItemModel>
 #include <QModelIndex>
 #include <QVariant>
@@ -38,8 +39,108 @@
 #include <array>
 
 namespace hal
-{
-    class ModuleItem;
+{    
+    class ModuleTreeItem : public BaseTreeItem
+    {
+        public:
+            enum class TreeItemType {Module, Gate, Net};
+
+        private:
+            u32 mId;
+            TreeItemType mType;
+            QString mName;
+
+
+            ModuleTreeItem* mParent;
+            QList<ModuleTreeItem*> mChildItems;
+
+            QColor mColor;
+            bool mHighlighted;
+        public:
+
+            ModuleTreeItem(const u32 id, const TreeItemType type = TreeItemType::Module);
+            QVariant getData(int column) const override;
+            void setData(QList<QVariant> data) override;
+            void setDataAtIndex(int index, QVariant& data) override;
+            void appendData(QVariant data) override;
+            int getColumnCount() const override;
+            /**
+             * Gets the type of the netlist item this ModuleTreeItem represents.
+             *
+             * @returns the ModuleItem type
+             */
+            TreeItemType getType() const;
+            /**
+             * Gets the id of the netlist item this ModuleTreeItem represents.
+             *
+             * @returns the module id
+             */
+            u32 id() const;
+            /**
+             * Gets the data of this item model item i.e. the name of this ModuleTreeItem if column=1.
+             *
+             * @param column - The column to get the data for
+             * @returns the data in the specified column of this ModuleItem
+             */
+            QVariant data(int column) const;
+            /**
+             * Checks if this ModuleTreeItem is currently highlighted.
+             *
+             * @returns <b>true</b> if this ModuleItem is currently highlighted.
+             */
+            bool highlighted() const;
+            /**
+             * Gets the index of this ModuleTreeItem in the list of children ModuleTreeItems of its parent.
+             *
+             * @returns the index in the parents ModuleItem children list
+             */
+            int row() const;
+            /**
+             * Gets the parent ModuleItem of this ModuleItem.
+             *
+             * @returns the parent ModuleItem. Returns a constant ModuleItem pointer
+             */
+            const ModuleTreeItem* constParent() const;
+            /**
+             * Given a set of ModuleItems (in a map [id]->[ModuleItem]) this function adds each ModuleItem of this set as
+             * a new children if its underlying module is a submodule (child) of the underlying module of this ModuleItem.
+             *
+             * @param moduleMap - A map [id]->[ModuleItem] of children candidates
+             */
+            void appendExistingChildIfAny(const QMap<u32,ModuleTreeItem*>& moduleMap);
+            /**
+             * Gets the current amount of children of this ModuleTreeItem.
+             *
+             * @returns the amount of children
+             */
+            int childCount() const;
+            /**
+             * Gets the parent ModuleItem of this ModuleItem.
+             *
+             * @returns the parent ModuleItem
+             */
+            ModuleTreeItem* parent();
+            /**
+             * Sets the name of this ModuleItem (not the underlying module).
+             *
+             * @param name - The new name
+             */
+            void setName(const QString& name);
+
+            /**
+             * Sets the color of the module this ModuleItem represents.
+             *
+             * @param color - The new color
+             */
+            void setColor(const QColor& color);
+
+            /**
+             * Gets the color of the netlist item this ModuleItem represents.
+             *
+             * @returns the module color
+             */
+            QColor color() const;
+    };
 
     /**
      * @ingroup gui
@@ -47,7 +148,7 @@ namespace hal
      *
      * The ModuleModel is the item model that represents the modules and their hierarchy in the netlist.
      */
-    class ModuleModel : public QAbstractItemModel
+    class ModuleModel : public BaseTreeModel
     {
         Q_OBJECT
 
@@ -61,43 +162,6 @@ namespace hal
          */
         explicit ModuleModel(QObject* parent = nullptr);
 
-        // === Pure Virtual ===
-        /**
-         * Returns the index of the item in the model specified by the given row, column and parent index.
-         *
-         * @param row - The row of the item
-         * @param column - The column of the item
-         * @param parent - the index of the parent of the item
-         * @returns the index at the specified position
-         */
-        QModelIndex index(int row, int column, const QModelIndex& parent = QModelIndex()) const override;
-
-        /**
-         * Returns the parent of the model item with the given index. If the item has no parent (i.e. index is
-         * invalid or module is the top module), and invalid QModelIndex is returned.
-         *
-         * @param index - The index to find the parent for
-         * @returns the model index of the parent
-         */
-        QModelIndex parent(const QModelIndex& index) const override;
-
-        /**
-         * Returns the number of rows under the given parent (i.e. the number of children of the parent).
-         *
-         * @param parent - The model index of the parent
-         * @returns the number of rows under the given parent
-         */
-        int rowCount(const QModelIndex& parent = QModelIndex()) const override;
-
-        /**
-         * Returns the number of columns for the children of the given parent. Since the module model only contains
-         * one column this function returns always 1.
-         *
-         * @param parent - The model index of the parent
-         * @returns the number of columns for the children of the given parent. Always 1.
-         */
-        int columnCount(const QModelIndex& parent = QModelIndex()) const override;
-
         /**
          * Returns the data stored under the given role for the item referred to by the index.
          *
@@ -107,25 +171,6 @@ namespace hal
          */
         QVariant data(const QModelIndex& index, int role) const override;
 
-        // === Virtual ===
-        /**
-         * Returns the item flags for the given index.
-         *
-         * @param index - The model index to get the flags for
-         * @returns the item flags for the given index
-         */
-        Qt::ItemFlags flags(const QModelIndex& index) const override;
-
-        /**
-         * Returns the data for the given role and section in the header with the specified orientation.
-         * //Since the model has not headers, an empty QVariant is always returned. // REMOVE THIS LINE?
-         *
-         * @param section - The section
-         * @param orientation - The orientation
-         * @param role - The role
-         * @returns the header data. Always empty.
-         */
-        QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
 
         // === Others ===
 
@@ -135,7 +180,7 @@ namespace hal
          * @param index - The model index to get the ModuleItem from
          * @returns the module item at the specified index
          */
-        ModuleItem* getItem(const QModelIndex& index) const;
+        ModuleTreeItem* getItem(const QModelIndex& index) const;
 
         /**
          * Returns the index where the specified ModuleItem can be found.
@@ -143,7 +188,7 @@ namespace hal
          * @param item - The ModuleItem to search for in the item model
          * @returns the model index of the specified ModuleItem
          */
-        QModelIndex getIndex(const ModuleItem* const item) const;
+        QModelIndex getIndex(const ModuleTreeItem* const item) const;
 
         /**
          * Returns the ModuleItem for a specified id and type.
@@ -152,7 +197,7 @@ namespace hal
          * @param type - The type of the ModuleItem
          * @returns the ModuleItem with the specified id and type.
          */
-        ModuleItem* getItem(const u32 id, ModuleItem::TreeItemType type = ModuleItem::TreeItemType::Module) const;
+        ModuleTreeItem* getItem(const u32 id, ModuleTreeItem::TreeItemType type = ModuleTreeItem::TreeItemType::Module) const;
 
         /**
          * Initializes the item model using the global netlist object gNetlist.
@@ -273,12 +318,12 @@ namespace hal
         void removeColor(u32 id);
 
     private:
-        ModuleItem* mTopModuleItem;
+        ModuleTreeItem* mTopModuleItem;
 
-        QMap<u32, ModuleItem*> mModuleMap;
-        QMap<u32, ModuleItem*> mGateMap;
-        QMap<u32, ModuleItem*> mNetMap;
-        std::array<QMap<u32, ModuleItem*>*, 3> mModuleItemMaps = {&mModuleMap, &mGateMap, &mNetMap};;
+        QMap<u32, ModuleTreeItem*> mModuleMap;
+        QMap<u32, ModuleTreeItem*> mGateMap;
+        QMap<u32, ModuleTreeItem*> mNetMap;
+        std::array<QMap<u32, ModuleTreeItem*>*, 3> mModuleItemMaps = {&mModuleMap, &mGateMap, &mNetMap};;
         QMap<u32, QColor> mModuleColors;
 
         bool mIsModifying;

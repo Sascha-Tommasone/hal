@@ -125,7 +125,7 @@ namespace hal {
         Q_ASSERT(treeModel);
         QModelIndex sourceIndex = mModuleTreeProxyModel->mapToSource(index);
         if (!sourceIndex.isValid()) return 0;
-        ModuleItem* item = treeModel->getItem(sourceIndex);
+        ModuleTreeItem* item = treeModel->getItem(sourceIndex);
         if (!item) return 0;
         return item->id();
      }

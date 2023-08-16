@@ -124,7 +124,7 @@ namespace hal {
         for (int irow=0; irow<nrows; irow++)
         {
             QModelIndex inx = mm->index(irow,0,parent);
-            const ModuleItem* mItem = mm->getItem(inx);
+            const ModuleTreeItem* mItem = mm->getItem(inx);
             if (!mItem) continue;
             QJsonObject mcEntry;
             mcEntry["id"] = (int) mItem->id();

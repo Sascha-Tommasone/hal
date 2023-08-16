@@ -39,6 +39,8 @@
 #include <QObject>
 #include <QSortFilterProxyModel>
 
+#include <gui/module_model/module_model.h>
+
 class QTreeView;
 
 namespace hal
@@ -235,6 +237,6 @@ namespace hal
 
         void openModuleInView(const QModelIndex& index);
 
-        ModuleItem* getModuleItemFromIndex(const QModelIndex& index);
+        ModuleTreeItem* getModuleItemFromIndex(const QModelIndex& index);
     };
 }    // namespace hal

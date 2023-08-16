@@ -241,12 +241,12 @@ namespace hal
 
         for (const auto& index : current_selection)
         {
-            ModuleItem* mi = getModuleItemFromIndex(index);
-            if(mi->getType() == ModuleItem::TreeItemType::Module)
+            ModuleTreeItem* mi = getModuleItemFromIndex(index);
+            if(mi->getType() == ModuleTreeItem::TreeItemType::Module)
                 gSelectionRelay->addModule(mi->id());
-            else if(mi->getType() == ModuleItem::TreeItemType::Gate)
+            else if(mi->getType() == ModuleTreeItem::TreeItemType::Gate)
                 gSelectionRelay->addGate(mi->id());
-            else if(mi->getType() == ModuleItem::TreeItemType::Net)
+            else if(mi->getType() == ModuleTreeItem::TreeItemType::Net)
                 gSelectionRelay->addNet(mi->id());
         }
 
@@ -318,7 +318,7 @@ namespace hal
         mIgnoreSelectionChange = false;
     }
 
-    ModuleItem* ModuleWidget::getModuleItemFromIndex(const QModelIndex& index)
+    ModuleTreeItem* ModuleWidget::getModuleItemFromIndex(const QModelIndex& index)
     {
         return gNetlistRelay->getModuleModel()->getItem(mModuleProxyModel->mapToSource(index));
     }

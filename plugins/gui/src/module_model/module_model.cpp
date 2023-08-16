@@ -12,103 +12,141 @@
 
 namespace hal
 {
-    ModuleModel::ModuleModel(QObject* parent) : QAbstractItemModel(parent), mTopModuleItem(nullptr)
+    ModuleTreeItem::ModuleTreeItem(const u32 id, const TreeItemType type):
+        mParent(nullptr),
+        mId(id),
+        mType(type),
+        mHighlighted(false)
     {
-    }
-
-    QModelIndex ModuleModel::index(int row, int column, const QModelIndex& parent) const
-    {
-        // BEHAVIOR FOR ILLEGAL INDICES IS UNDEFINED
-        // SEE QT DOCUMENTATION
-        if (!hasIndex(row, column, parent))
-            return QModelIndex();
-
-        if (!parent.isValid())
+        switch(type)
         {
-            if (row == 0 && column >= 0 && column < 3 && mTopModuleItem)
-                return createIndex(0, column, mTopModuleItem);
-            else
-                return QModelIndex();
+        case TreeItemType::Module:
+            mName = QString::fromStdString(gNetlist->get_module_by_id(id)->get_name());
+            mColor = gNetlistRelay->getModuleColor(id);
+            break;
+        case TreeItemType::Gate:
+            mName = QString::fromStdString(gNetlist->get_gate_by_id(id)->get_name());
+            break;
+        case TreeItemType::Net:
+            mName = QString::fromStdString(gNetlist->get_net_by_id(id)->get_name());
+            break;
         }
-
-        if (column < 0 || column >= 3 || parent.column() < 0 || parent.column() >= 3)
-            return QModelIndex();
-
-        ModuleItem* parent_item = getItem(parent);
-
-        ModuleItem* child_item = static_cast<ModuleItem*>(parent_item)->child(row);
-        assert(child_item);
-
-        return createIndex(row, column, child_item);
-
-        // NECESSARY ???
-        //    if (column != 0)
-        //        return QModelIndex();
-
-        //    // PROBABLY REDUNDANT
-        //    if (parent.isValid() && parent.column() != 0)
-        //        return QModelIndex();
-
-        //    ModuleItem* parent_item = getItem(parent);
-        //    ModuleItem* child_item = parent_item->child(row);
-
-        //    if (child_item)
-        //        return createIndex(row, column, child_item);
-        //    else
-        //        return QModelIndex();
     }
 
-    QModelIndex ModuleModel::parent(const QModelIndex& index) const
+    ModuleTreeItem::TreeItemType ModuleTreeItem::getType() const{
+        return mType;
+    }
+
+
+    u32 ModuleTreeItem::id() const
     {
-        if (!index.isValid())
-            return QModelIndex();
-
-        ModuleItem* item = getItem(index);
-
-        if (item == mTopModuleItem)
-            return QModelIndex();
-
-        ModuleItem* parent_item = item->parent();
-        return createIndex(parent_item->row(), 0, parent_item);
-
-        //    if (!index.isValid())
-        //        return QModelIndex();
-
-        //    ModuleItem* child_item  = getItem(index);
-        //    ModuleItem* parent_item = child_item->parent();
-
-        //    if (parent_item == m_root_item)
-        //        return QModelIndex();
-
-        //    return createIndex(parent_item->row(), 0, parent_item);
+        return mId;
     }
 
-    int ModuleModel::rowCount(const QModelIndex& parent) const
+    QVariant ModuleTreeItem::data(int column) const
     {
-        if (!parent.isValid())    // ??
-            return 1;
-
-        //if (parent.column() != 0)
-        //    return 0;
-
-        ModuleItem* parent_item = getItem(parent);
-
-        return parent_item->childCount();
+        // DEBUG CODE, USE STYLED DELEGATES OR SOMETHING
+        if(column == 0)
+            return mName;
+        else if (column == 1)
+            return mId;
+        else if(column == 2)
+        {
+            switch(mType)
+            {
+                case TreeItemType::Module:
+                {
+                    Module* module = gNetlist->get_module_by_id(mId);
+                    if(!module)
+                        return QVariant();
+                    return QString::fromStdString(module->get_type());
+                }
+                case TreeItemType::Gate:
+                    Gate* gate = gNetlist->get_gate_by_id(mId);
+                    if(!gate)
+                        return QVariant();
+                    return QString::fromStdString(gate->get_type()->get_name());
+            }
+        }
+        return QVariant();
     }
 
-    int ModuleModel::columnCount(const QModelIndex& parent) const
+    bool ModuleTreeItem::highlighted() const
     {
-        Q_UNUSED(parent)
-
-        return 3;
+        return mHighlighted;
     }
+
+    int ModuleTreeItem::row() const
+    {
+        if (mParent)
+            return mParent->mChildItems.indexOf(const_cast<ModuleTreeItem*>(this));
+        else
+            return 0;
+    }
+
+    const ModuleTreeItem* ModuleTreeItem::constParent() const
+    {
+        return mParent;
+    }
+
+    void ModuleTreeItem::appendExistingChildIfAny(const QMap<u32,ModuleTreeItem*>& moduleMap)
+    {
+        if(mType != TreeItemType::Module) // only module can have children
+            return;
+
+        Module* m = gNetlist->get_module_by_id(mId);
+        Q_ASSERT(m);
+        for (Module* subm : m->get_submodules())
+        {
+            auto it = moduleMap.find(subm->get_id());
+            if (it != moduleMap.constEnd())
+            {
+                ModuleTreeItem* childItem = it.value();
+                appendChild(childItem);
+                childItem->setParent(this);
+            }
+        }
+    }
+
+    int ModuleTreeItem::childCount() const
+    {
+        return mChildItems.count();
+    }
+
+    ModuleTreeItem* ModuleTreeItem::parent()
+    {
+        return mParent;
+    }
+
+    void ModuleTreeItem::setName(const QString& name)
+    {
+        mName = name;
+    }
+
+    void ModuleTreeItem::setColor(const QColor& color)
+    {
+        mColor = color;
+    }
+
+    QColor ModuleTreeItem::color() const
+    {
+        return mColor;
+    }
+
+    ModuleModel::ModuleModel(QObject* parent) : BaseTreeModel(parent)
+    {
+        setHeaderLabels(QStringList() << "Name" << "ID" << "Type");
+
+    }
+
 
     QVariant ModuleModel::data(const QModelIndex& index, int role) const
     {
         if (!index.isValid())
             return QVariant();
 
-        ModuleItem* item = static_cast<ModuleItem*>(index.internalPointer());
+        //ModuleItem* item = static_cast<ModuleItem*>(index.internalPointer());
+        ModuleTreeItem* item = static_cast<ModuleTreeItem*>(getItemFromIndex(index));
 
         if (!item)
             return QVariant();
@@ -120,11 +158,11 @@ namespace hal
                 if (index.column() == 0)
                 {
                     switch(item->getType()){
-                        case ModuleItem::TreeItemType::Module:
+                        case ModuleTreeItem::TreeItemType::Module:
                             return QIcon(*SelectionDetailsIconProvider::instance()->getIcon(SelectionDetailsIconProvider::ModuleIcon, item->id()));
-                        case ModuleItem::TreeItemType::Gate:
+                        case ModuleTreeItem::TreeItemType::Gate:
                             return QIcon(*SelectionDetailsIconProvider::instance()->getIcon(SelectionDetailsIconProvider::GateIcon, item->id()));
-                        case ModuleItem::TreeItemType::Net:
+                        case ModuleTreeItem::TreeItemType::Net:
                             return QIcon(*SelectionDetailsIconProvider::instance()->getIcon(SelectionDetailsIconProvider::NetIcon, item->id()));
                     }
                 }
@@ -147,42 +185,22 @@ namespace hal
         return QVariant();
     }
 
-    Qt::ItemFlags ModuleModel::flags(const QModelIndex& index) const
-    {
-        if (!index.isValid())
-            return 0;
 
-        return QAbstractItemModel::flags(index);
-    }
 
-    QVariant ModuleModel::headerData(int section, Qt::Orientation orientation, int role) const
-    {
-        /*Q_UNUSED(section)
-        Q_UNUSED(orientation)
-        Q_UNUSED(role)
-
-        return QVariant();*/
-        const char* horizontalHeader[] = { "Name", "ID", "Type"};
-        if (orientation == Qt::Horizontal && role == Qt::DisplayRole && section < columnCount())
-            return QString(horizontalHeader[section]);
-
-        return QVariant();
-    }
-
-    ModuleItem* ModuleModel::getItem(const QModelIndex& index) const
+    ModuleTreeItem* ModuleModel::getItem(const QModelIndex& index) const
     {
         if (index.isValid())
-            return static_cast<ModuleItem*>(index.internalPointer());
+            return static_cast<ModuleTreeItem*>(index.internalPointer());
         else
             return nullptr;
     }
 
-    QModelIndex ModuleModel::getIndex(const ModuleItem* const item) const
+    QModelIndex ModuleModel::getIndex(const ModuleTreeItem* const item) const
     {
         assert(item);
 
         QVector<int> row_numbers;
-        const ModuleItem* current_item = item;
+        const ModuleTreeItem* current_item = item;
 
         while (current_item != mTopModuleItem)
         {
@@ -201,7 +219,7 @@ namespace hal
     void ModuleModel::init()
     {
         setModuleColor(1, QColor(96, 110, 112));
-        ModuleItem* item = new ModuleItem(1);
+        ModuleTreeItem* item = new ModuleTreeItem(1);
         mModuleMap.insert(1, item);
 
         beginInsertRows(index(0, 0, QModelIndex()), 0, 0);
@@ -239,11 +257,11 @@ namespace hal
 
         mTopModuleItem = nullptr;
 
-        for (ModuleItem* m : mModuleMap)
+        for (ModuleTreeItem* m : mModuleMap)
             delete m;
-        for (ModuleItem* g : mGateMap)
+        for (ModuleTreeItem* g : mGateMap)
             delete g;
-        for (ModuleItem* n : mNetMap)
+        for (ModuleTreeItem* n : mNetMap)
             delete n;
 
         mModuleMap.clear();
@@ -261,9 +279,9 @@ namespace hal
         assert(!mModuleMap.contains(id));
         assert(mModuleMap.contains(parent_module));
 
-        ModuleItem* item   = new ModuleItem(id);
+        ModuleTreeItem* item   = new ModuleTreeItem(id);
         item->appendExistingChildIfAny(mModuleMap);
-        ModuleItem* parent = mModuleMap.value(parent_module);
+        ModuleTreeItem* parent = mModuleMap.value(parent_module);
 
         item->setParent(parent);
         mModuleMap.insert(id, item);
@@ -284,9 +302,9 @@ namespace hal
         assert(gNetlist->get_module_by_id(parent_module));
         assert(!mGateMap.contains(id));
         assert(mModuleMap.contains(parent_module));
-        ModuleItem* item   = new ModuleItem(id, ModuleItem::TreeItemType::Gate);
+        ModuleTreeItem* item   = new ModuleTreeItem(id, ModuleTreeItem::TreeItemType::Gate);
         //item->appendExistingChildIfAny(mModuleMap);
-        ModuleItem* parent = mModuleMap.value(parent_module);
+        ModuleTreeItem* parent = mModuleMap.value(parent_module);
 
         item->setParent(parent);
         mGateMap.insert(id, item);
@@ -309,9 +327,9 @@ namespace hal
         assert(!mNetMap.contains(id));
         assert(mModuleMap.contains(parent_module));
 
-        ModuleItem* item   = new ModuleItem(id, ModuleItem::TreeItemType::Net);
+        ModuleTreeItem* item   = new ModuleTreeItem(id, ModuleTreeItem::TreeItemType::Net);
         //item->appendExistingChildIfAny(mModuleMap);
-        ModuleItem* parent = mModuleMap.value(parent_module);
+        ModuleTreeItem* parent = mModuleMap.value(parent_module);
 
         item->setParent(parent);
         mNetMap.insert(id, item);
@@ -351,8 +369,8 @@ namespace hal
         assert(gNetlist->get_module_by_id(id));
         assert(mModuleMap.contains(id));
 
-        ModuleItem* item   = mModuleMap.value(id);
-        ModuleItem* parent = item->parent();
+        ModuleTreeItem* item   = mModuleMap.value(id);
+        ModuleTreeItem* parent = item->parent();
         assert(item);
         assert(parent);
 
@@ -375,8 +393,8 @@ namespace hal
         assert(gNetlist->get_gate_by_id(id));
         assert(mGateMap.contains(id));
 
-        ModuleItem* item   = mGateMap.value(id);
-        ModuleItem* parent = item->parent();
+        ModuleTreeItem* item   = mGateMap.value(id);
+        ModuleTreeItem* parent = item->parent();
         assert(item);
         assert(parent);
 
@@ -399,8 +417,8 @@ namespace hal
         assert(gNetlist->get_net_by_id(id));
         assert(mModuleMap.contains(id));
 
-        ModuleItem* item   = mNetMap.value(id);
-        ModuleItem* parent = item->parent();
+        ModuleTreeItem* item   = mNetMap.value(id);
+        ModuleTreeItem* parent = item->parent();
         assert(item);
         assert(parent);
 
@@ -423,7 +441,7 @@ namespace hal
         assert(gNetlist->get_module_by_id(id));
         assert(mModuleMap.contains(id));
 
-        ModuleItem* item = mModuleMap.value(id);
+        ModuleTreeItem* item = mModuleMap.value(id);
         assert(item);
 
         item->setName(QString::fromStdString(gNetlist->get_module_by_id(id)->get_name()));    // REMOVE & ADD AGAIN
@@ -433,7 +451,7 @@ namespace hal
         Q_EMIT dataChanged(index, index);
     }
 
-    ModuleItem* ModuleModel::getItem(u32 id, ModuleItem::TreeItemType type) const
+    ModuleTreeItem* ModuleModel::getItem(u32 id, ModuleTreeItem::TreeItemType type) const
     {
         return mModuleItemMaps[(int)type]->value(id);
     }
@@ -466,4 +484,7 @@ namespace hal
     {
         return mIsModifying;
     }
+
+
+
 }
