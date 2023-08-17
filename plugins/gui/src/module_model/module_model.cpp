@@ -13,28 +13,73 @@
 namespace hal
 {
     ModuleTreeItem::ModuleTreeItem(const u32 id, const TreeItemType type):
-        mParent(nullptr),
         mId(id),
-        mType(type),
+        mItemType(type),
         mHighlighted(false)
-    {
+    {        
         switch(type)
         {
         case TreeItemType::Module:
-            mName = QString::fromStdString(gNetlist->get_module_by_id(id)->get_name());
+        {
+            Module* m = gNetlist->get_module_by_id(id);
+            Q_ASSERT(m);
+            mName = QString::fromStdString(m->get_name());
+            mTextType = QString::fromStdString(m->get_type());
             mColor = gNetlistRelay->getModuleColor(id);
             break;
+        }
         case TreeItemType::Gate:
-            mName = QString::fromStdString(gNetlist->get_gate_by_id(id)->get_name());
+        {
+            Gate* g = gNetlist->get_gate_by_id(id);
+            Q_ASSERT(g);
+            mName = QString::fromStdString(g->get_name());
+            mTextType = QString::fromStdString(g->get_type()->get_name());
             break;
+        }
         case TreeItemType::Net:
             mName = QString::fromStdString(gNetlist->get_net_by_id(id)->get_name());
             break;
         }
     }
 
-    ModuleTreeItem::TreeItemType ModuleTreeItem::getType() const{
-        return mType;
+    void ModuleTreeItem::setData(QList<QVariant> data)
+    {
+        int i=0;
+        for (QVariant dataEntry : data)
+        {
+            setDataAtIndex(i++, dataEntry);
+        }
+    }
+
+    void ModuleTreeItem::setDataAtIndex(int index, QVariant& data)
+    {
+        switch (index)
+        {
+        case 0:
+            mName = data.toString();
+            break;
+        case 1:
+            mId = data.toInt();
+            break;
+        case 2:
+            mTextType = data.toString();
+            break;
+        }
+    }
+
+    void ModuleTreeItem::appendData(QVariant data)
+    {
+        Q_UNUSED(data);
+        Q_ASSERT(1==0);  // dont use, function yet not implemented. TODO: Is it needed?
+    }
+
+    int ModuleTreeItem::getColumnCount() const
+    {
+        return 3;
+    }
+
+    ModuleTreeItem::TreeItemType ModuleTreeItem::getItemType() const{
+        return mItemType;
     }
 
 
@@ -43,30 +88,17 @@ namespace hal
         return mId;
     }
 
-    QVariant ModuleTreeItem::data(int column) const
+    QVariant ModuleTreeItem::getData(int column) const
     {
         // DEBUG CODE, USE STYLED DELEGATES OR SOMETHING
-        if(column == 0)
-            return mName;
-        else if (column == 1)
-            return mId;
-        else if(column == 2)
+        switch (column)
         {
-            switch(mType)
-            {
-                case TreeItemType::Module:
-                {
-                    Module* module = gNetlist->get_module_by_id(mId);
-                    if(!module)
-                        return QVariant();
-                    return QString::fromStdString(module->get_type());
-                }
-                case TreeItemType::Gate:
-                    Gate* gate = gNetlist->get_gate_by_id(mId);
-                    if(!gate)
-                        return QVariant();
-                    return QString::fromStdString(gate->get_type()->get_name());
-            }
+        case 0:
+            return mName;
+        case 1:
+            return mId;
+        case 2:
+            return mTextType;
         }
         return QVariant();
     }
@@ -78,20 +110,15 @@ namespace hal
 
     int ModuleTreeItem::row() const
     {
-        if (mParent)
-            return mParent->mChildItems.indexOf(const_cast<ModuleTreeItem*>(this));
+        if (getParent())
+            return getParent()->getChildren().indexOf(const_cast<ModuleTreeItem*>(this));
         else
             return 0;
     }
 
-    const ModuleTreeItem* ModuleTreeItem::constParent() const
-    {
-        return mParent;
-    }
-
     void ModuleTreeItem::appendExistingChildIfAny(const QMap<u32,ModuleTreeItem*>& moduleMap)
     {
-        if(mType != TreeItemType::Module) // only module can have children
+        if(mItemType != TreeItemType::Module) // only module can have children
             return;
 
         Module* m = gNetlist->get_module_by_id(mId);
@@ -108,16 +135,6 @@ namespace hal
         }
     }
 
-    int ModuleTreeItem::childCount() const
-    {
-        return mChildItems.count();
-    }
-
-    ModuleTreeItem* ModuleTreeItem::parent()
-    {
-        return mParent;
-    }
-
     void ModuleTreeItem::setName(const QString& name)
     {
         mName = name;
@@ -126,6 +143,16 @@ namespace hal
     void ModuleTreeItem::setColor(const QColor& color)
     {
         mColor = color;
+    }
+
+    void ModuleTreeItem::setTextType(const QString& type)
+    {
+        mTextType = type;
+    }
+
+    QString ModuleTreeItem::getTextType() const
+    {
+        return mTextType;
     }
 
     QColor ModuleTreeItem::color() const
@@ -157,7 +184,7 @@ namespace hal
             {
                 if (index.column() == 0)
                 {
-                    switch(item->getType()){
+                    switch(item->getItemType()){
                         case ModuleTreeItem::TreeItemType::Module:
                             return QIcon(*SelectionDetailsIconProvider::instance()->getIcon(SelectionDetailsIconProvider::ModuleIcon, item->id()));
                         case ModuleTreeItem::TreeItemType::Gate:
@@ -170,7 +197,7 @@ namespace hal
             }
             case Qt::DisplayRole:
             {
-                return item->data(index.column());
+                return item->getData(index.column());
             }
             case Qt::ForegroundRole:
             {
@@ -205,7 +232,7 @@ namespace hal
         while (current_item != mTopModuleItem)
         {
             row_numbers.append(current_item->row());
-            current_item = current_item->constParent();
+            current_item = dynamic_cast<const ModuleTreeItem*>(current_item->getParent());
         }
 
         QModelIndex model_index = index(0, 0, QModelIndex());
@@ -249,6 +276,8 @@ namespace hal
             if(added_nets.size() > size)
                 addNet(n->get_id(), m->get_id());
         }
+
+        mRootItem->appendChild(mTopModuleItem);
     }
 
     void ModuleModel::clear()
@@ -268,7 +297,6 @@ namespace hal
         mGateMap.clear();
         mNetMap.clear();
         mModuleColors.clear();
-
         endResetModel();
     }
 
@@ -288,7 +316,7 @@ namespace hal
 
         QModelIndex index = getIndex(parent);
 
-        int row = parent->childCount();
+        int row = parent->getChildCount();
         mIsModifying = true;
         beginInsertRows(index, row, row);
         parent->insertChild(row, item);
@@ -311,7 +339,7 @@ namespace hal
 
         QModelIndex index = getIndex(parent);
 
-        int row = parent->childCount();
+        int row = parent->getChildCount();
         mIsModifying = true;
         beginInsertRows(index, row, row);
         parent->insertChild(row, item);
@@ -336,7 +364,7 @@ namespace hal
 
         QModelIndex index = getIndex(parent);
 
-        int row = parent->childCount();
+        int row = parent->getChildCount();
         mIsModifying = true;
         beginInsertRows(index, row, row);
         parent->insertChild(row, item);
@@ -370,7 +398,7 @@ namespace hal
         assert(mModuleMap.contains(id));
 
         ModuleTreeItem* item   = mModuleMap.value(id);
-        ModuleTreeItem* parent = item->parent();
+        ModuleTreeItem* parent = dynamic_cast<ModuleTreeItem*>(item->getParent());
         assert(item);
         assert(parent);
 
@@ -394,7 +422,7 @@ namespace hal
         assert(mGateMap.contains(id));
 
         ModuleTreeItem* item   = mGateMap.value(id);
-        ModuleTreeItem* parent = item->parent();
+        ModuleTreeItem* parent = dynamic_cast<ModuleTreeItem*>(item->getParent());
         assert(item);
         assert(parent);
 
@@ -418,7 +446,7 @@ namespace hal
         assert(mModuleMap.contains(id));
 
         ModuleTreeItem* item   = mNetMap.value(id);
-        ModuleTreeItem* parent = item->parent();
+        ModuleTreeItem* parent = dynamic_cast<ModuleTreeItem*>(item->getParent());
         assert(item);
         assert(parent);
 
@@ -444,7 +472,8 @@ namespace hal
         ModuleTreeItem* item = mModuleMap.value(id);
         assert(item);
 
-        item->setName(QString::fromStdString(gNetlist->get_module_by_id(id)->get_name()));    // REMOVE & ADD AGAIN
+        Module* m = gNetlist->get_module_by_id(id);
+        item->setName(QString::fromStdString(m->get_name()));    // REMOVE & ADD AGAIN
         item->setColor(gNetlistRelay->getModuleColor(id));
 
         QModelIndex index = getIndex(item);

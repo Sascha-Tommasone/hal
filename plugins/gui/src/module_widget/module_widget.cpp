@@ -242,12 +242,18 @@ namespace hal
         for (const auto& index : current_selection)
         {
             ModuleTreeItem* mi = getModuleItemFromIndex(index);
-            if(mi->getType() == ModuleTreeItem::TreeItemType::Module)
+            switch (mi->getItemType())
+            {
+            case ModuleTreeItem::TreeItemType::Module:
                 gSelectionRelay->addModule(mi->id());
-            else if(mi->getType() == ModuleTreeItem::TreeItemType::Gate)
+                break;
+            case ModuleTreeItem::TreeItemType::Gate:
                 gSelectionRelay->addGate(mi->id());
-            else if(mi->getType() == ModuleTreeItem::TreeItemType::Net)
+                break;
+            case ModuleTreeItem::TreeItemType::Net:
                 gSelectionRelay->addNet(mi->id());
+                break;
+            }
         }
 
         if (current_selection.size() == 1)

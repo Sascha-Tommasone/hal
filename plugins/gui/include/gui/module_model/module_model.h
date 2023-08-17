@@ -47,42 +47,49 @@ namespace hal
 
         private:
             u32 mId;
-            TreeItemType mType;
+            TreeItemType mItemType;
             QString mName;
-
-
-            ModuleTreeItem* mParent;
-            QList<ModuleTreeItem*> mChildItems;
+            QString mTextType;
 
             QColor mColor;
             bool mHighlighted;
         public:
 
             ModuleTreeItem(const u32 id, const TreeItemType type = TreeItemType::Module);
-            QVariant getData(int column) const override;
-            void setData(QList<QVariant> data) override;
-            void setDataAtIndex(int index, QVariant& data) override;
-            void appendData(QVariant data) override;
-            int getColumnCount() const override;
-            /**
-             * Gets the type of the netlist item this ModuleTreeItem represents.
-             *
-             * @returns the ModuleItem type
-             */
-            TreeItemType getType() const;
-            /**
-             * Gets the id of the netlist item this ModuleTreeItem represents.
-             *
-             * @returns the module id
-             */
-            u32 id() const;
+
             /**
              * Gets the data of this item model item i.e. the name of this ModuleTreeItem if column=1.
              *
              * @param column - The column to get the data for
              * @returns the data in the specified column of this ModuleItem
              */
-            QVariant data(int column) const;
+            QVariant getData(int column) const override;
+            void setData(QList<QVariant> data) override;
+            void setDataAtIndex(int index, QVariant& data) override;
+            void appendData(QVariant data) override;
+            int getColumnCount() const override;
+
+            /**
+             * Gets the item type of the netlist item this ModuleTreeItem represents.
+             *
+             * @returns the ModuleItem type
+             */
+            TreeItemType getItemType() const;
+
+            /**
+             * Gets the text type of the netlist item this ModuleTreeItem represents.
+             *
+             * @returns the ModuleItem type
+             */
+            QString getTextType() const;
+
+            /**
+             * Gets the id of the netlist item this ModuleTreeItem represents.
+             *
+             * @returns the module id
+             */
+            u32 id() const;
+
             /**
              * Checks if this ModuleTreeItem is currently highlighted.
              *
@@ -95,36 +102,21 @@ namespace hal
              * @returns the index in the parents ModuleItem children list
              */
             int row() const;
-            /**
-             * Gets the parent ModuleItem of this ModuleItem.
-             *
-             * @returns the parent ModuleItem. Returns a constant ModuleItem pointer
-             */
-            const ModuleTreeItem* constParent() const;
+
             /**
              * Given a set of ModuleItems (in a map [id]->[ModuleItem]) this function adds each ModuleItem of this set as
              * a new children if its underlying module is a submodule (child) of the underlying module of this ModuleItem.
              *
              * @param moduleMap - A map [id]->[ModuleItem] of children candidates
              */
+
             void appendExistingChildIfAny(const QMap<u32,ModuleTreeItem*>& moduleMap);
             /**
              * Gets the current amount of children of this ModuleTreeItem.
              *
              * @returns the amount of children
              */
-            int childCount() const;
-            /**
-             * Gets the parent ModuleItem of this ModuleItem.
-             *
-             * @returns the parent ModuleItem
-             */
-            ModuleTreeItem* parent();
-            /**
-             * Sets the name of this ModuleItem (not the underlying module).
-             *
-             * @param name - The new name
-             */
+
             void setName(const QString& name);
 
             /**
@@ -133,6 +125,12 @@ namespace hal
              * @param color - The new color
              */
             void setColor(const QColor& color);
+
+            /**
+             * Sets the text type
+             * @param type - The new type
+             */
+            void setTextType(const QString& type);
 
             /**
              * Gets the color of the netlist item this ModuleItem represents.
