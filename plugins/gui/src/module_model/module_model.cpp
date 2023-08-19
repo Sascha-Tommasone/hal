@@ -284,14 +284,7 @@ namespace hal
     {
         beginResetModel();
 
-        mTopModuleItem = nullptr;
-
-        for (ModuleTreeItem* m : mModuleMap)
-            delete m;
-        for (ModuleTreeItem* g : mGateMap)
-            delete g;
-        for (ModuleTreeItem* n : mNetMap)
-            delete n;
+        delete mTopModuleItem;
 
         mModuleMap.clear();
         mGateMap.clear();
