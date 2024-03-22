@@ -7,6 +7,8 @@
 !dataflow_analysis/**/*
 !gate_libraries*
 !gate_libraries/**/*
+!generate_hre_task*
+!generate_hre_task/**/*
 !gexf_writer*
 !gexf_writer/**/*
 !graph_algorithm*

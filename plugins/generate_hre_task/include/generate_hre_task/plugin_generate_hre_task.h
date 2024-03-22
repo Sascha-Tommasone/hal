@@ -1,20 +1,20 @@
 // MIT License
-// 
+//
 // Copyright (c) 2019 Ruhr University Bochum, Chair for Embedded Security. All Rights reserved.
 // Copyright (c) 2019 Marc Fyrbiak, Sebastian Wallat, Max Hoffmann ("ORIGINAL AUTHORS"). All rights reserved.
 // Copyright (c) 2021 Max Planck Institute for Security and Privacy. All Rights reserved.
 // Copyright (c) 2021 Jörn Langheinrich, Julian Speith, Nils Albartus, René Walendy, Simon Klix ("ORIGINAL AUTHORS"). All Rights reserved.
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -25,27 +25,58 @@
 
 #pragma once
 
-#include <string>
+#include "hal_core/plugin_system/plugin_interface_base.h"
+#include "hal_core/plugin_system/fac_extension_interface.h"
+#include "hal_core/plugin_system/gui_extension_interface.h"
 
 namespace hal
 {
-    class PluginParameter
+    class NetlistSimulatorController;
+    class GenerateHreTaskPlugin;
+
+    class FacExtensionHreTask : public FacExtensionInterface
     {
     public:
-        enum ParameterType { Absent, Boolean, Color, ComboBox, Dictionary, ExistingDir, ExistingFile, Float, Gate, Integer, Module, NewFile, PushButton, String, TabName };
-    private:
-        ParameterType m_type;
-        std::string m_tagname;
-        std::string m_label;
-        std::string m_value;
-    public:
-        PluginParameter(ParameterType tp=Absent, const std::string& tag=std::string(), const std::string& lbl=std::string(), const std::string& val=std::string())
-            : m_type(tp), m_tagname(tag), m_label(lbl), m_value(val) {;}
-        std::string get_tagname() const { return m_tagname; }
-        std::string get_label() const { return m_label; }
-        std::string get_value() const { return m_value; }
-        ParameterType get_type() const { return m_type; }
-        void set_value(const std::string& v)  { m_value = v; }
-        void set_tagname(const std::string& tg) { m_tagname = tg; }
+        FacExtensionHreTask();
     };
-}
+
+    class GuiExtensionHreTask : public GuiExtensionInterface
+    {
+        std::vector<PluginParameter> m_parameter;
+
+    public:
+        GenerateHreTaskPlugin* m_parent;
+
+        GuiExtensionHreTask();
+        ~GuiExtensionHreTask();
+
+        std::vector<PluginParameter> get_parameter() const override;
+
+        void set_parameter(const std::vector<PluginParameter>& params) override;
+
+    };
+
+    class PLUGIN_API GenerateHreTaskPlugin : public BasePluginInterface
+    {
+        FacExtensionHreTask*      m_fac_extension;
+        GuiExtensionHreTask*      m_gui_extension;
+        std::unique_ptr<NetlistSimulatorController> m_simul_controller;
+    public:
+        std::unique_ptr<Netlist>  m_original_netlist;
+        GenerateHreTaskPlugin();
+
+        std::string get_name() const override;
+        std::string get_version() const override;
+
+        void on_load() override;
+        void on_unload() override;
+
+        /**
+         * Returns plugin dependencies (GUI, simulation controller, verilator, waveform viewer)
+         */
+        std::set<std::string> get_dependencies() const override;
+
+        bool simulate(std::filesystem::path sim_input);
+
+    };
+}    // namespace hal
