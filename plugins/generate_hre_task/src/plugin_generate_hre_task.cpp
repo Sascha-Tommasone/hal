@@ -108,6 +108,11 @@ namespace hal
              break;
          }
 
+         std::vector<const Net*> probes;
+         for (u32 id : {3, 4, 5, 14, 18, 15}) // input, output, internal probe 15
+             probes.push_back(m_original_netlist.get()->get_net_by_id(id));
+         m_simul_controller.get()->simulate_only_probes(probes);
+
          m_simul_controller.get()->emit_run_simulation();
          return true;
      }
